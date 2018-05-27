@@ -1,25 +1,25 @@
-#coding=utf-8
+# coding=utf-8
 from collections import defaultdict
+
 
 def bayes(data):
     py = defaultdict(int)
     px_y = defaultdict(int)
     xs = {}
-    N = 0
-    for item in data:
-        y = item[-1]
+    for row in data:
+        y = row[-1]
         py[y] += 1
-        N += 1
-        for x in item[0:-1]:
+        for x in row[0:-1]:
             px_y['x=%s|y=%s' % (x, y)] += 1
             xs[x] = 1
 
     for y, n in py.items():
         for x in xs:
             px_y['x=%s|y=%s' % (x, y)] /= n * 1.0
-        py[y] /= N * 1.0
+        py[y] /= len(data) * 1.0
 
     return py, px_y
+
 
 def predict(x, py, px_y):
     max_p = 0
@@ -40,4 +40,3 @@ if __name__ == '__main__':
     py, px_y = bayes(data)
     x = [2, 'S']
     print predict(x, py, px_y)
-
