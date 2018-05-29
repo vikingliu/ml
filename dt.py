@@ -91,7 +91,7 @@ def min_Gini(D, A):
             min_gDA = gDA
             split_D = {i: D1}
             if D2:
-                split_D['other'] = D2
+                split_D['#other'] = D2
 
     return min_gDA, split_D
 
@@ -122,16 +122,24 @@ def split(D, A):
     return Di
 
 
-def dt(D, features, f, has_split_A=[], alg='id3', e=0.01):
+def max_cnt(D):
+    stats = defaultdict(int)
+    for y in D:
+        stats[y] += 1
+    stats = sorted(stats.items(), key=lambda x: x[1])
+    return stats[0][0]
+
+
+def train(D, features, best_split_func, has_split_A=[], alg='id3', e=0.01, depth=1, max_depth=sys.maxint, min_sample=1):
     split_feature = None
     Di = None
     rst = []
     d = [item[-1] for item in D]
-    if len(set(d)) != 1:
+    if len(set(d)) != 1 and depth < max_depth and len(d) > min_sample:
         for A in range(len(D[0]) - 1):
             if A in has_split_A:
                 continue
-            gDA, gDi = f(D, A)
+            gDA, gDi = best_split_func(D, A)
             rst.append((gDA, gDi, A))
 
         if alg in ['id3', 'c45'] and rst:
@@ -139,35 +147,61 @@ def dt(D, features, f, has_split_A=[], alg='id3', e=0.01):
             if gDA < e:
                 split_feature = None
 
-        elif alg in ['cart'] and rst:
+        elif alg in ['cart', 'cart_r'] and rst:
             gDA, Di, split_feature = min(rst)
 
     if split_feature is None:
-        return Node(D[0][-1])
+        if alg in ['cart_r']:
+            val = sum(d) * 1.0 / len(d)
+        else:
+            val = max_cnt(d)
+
+        return Node(val, sample=D)
 
     children = {}
     for v, di in Di.items():
-        child = dt(di, features, f, has_split_A + [split_feature], alg, e)
+        child = train(di, features, best_split_func, has_split_A + [split_feature], alg, e, depth + 1, max_depth, min_sample)
         if child:
             children[v] = child
 
-    return Node(features[split_feature], children)
+    return Node(features[split_feature], split_feature, children, D)
+
+
+def classify(model, data):
+    if model.children:
+        val = data[model.feature]
+        sub_model = model.children.get(val, None)
+        sub_model = sub_model if sub_model else model.children['#other']
+        return classify(sub_model, data)
+    else:
+        return model.val
+
+
+def regression(model, data):
+    if model.children:
+        val = data[model.feature]
+        for split_point, sub_model in model.children.items():
+            if '<=' in split_point and val <= float(split_point.replace('<=', '')):
+                break
+        return classify(sub_model, data)
+    else:
+        return model.val
 
 
 def id3(D, features):
-    return dt(D, features, g)
+    return train(D, features, g)
 
 
 def c45(D, features):
-    return dt(D, features, gr)
+    return train(D, features, gr)
 
 
 def cart(D, features):
-    return dt(D, features, min_Gini, [], 'cart')
+    return train(D, features, min_Gini, [], 'cart')
 
 
 def cart_r(D, features):
-    return dt(D, features, min_square_error, [], 'cart')
+    return train(D, features, min_square_error, [], 'cart_r')
 
 
 if __name__ == '__main__':
@@ -189,8 +223,11 @@ if __name__ == '__main__':
         [u'老年', u'否', u'否', u'一般', u'否'],
     ]
     data1 = [[1, 4.5], [2, 4.75], [3, 4.91], [4, 5.34], [5, 5.80], [6, 7.05], [7, 7.90], [8, 8.23], [9, 8.70],
-            [10, 9.00]]
+             [10, 9.00]]
     f = [u'年龄', u'有工作', u'有自己的房子', u'信贷情况']
-    node = c45(data, f)
+    f1 = ['x']
+    model = cart_r(data1, f1)
+    # print classify(model, [u'老年', u'否', u'是', u'非常好'])
+    print regression(model, [5.5])
 
-    node.show()
+    model.show()

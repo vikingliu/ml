@@ -83,9 +83,11 @@ def createPlot(inTree):
 
 
 class Node:
-    def __init__(self, val, children=None):
+    def __init__(self, val, feature=None, children=None, sample=None):
         self.val = val
+        self.feature = feature
         self.children = children
+        self.sample = sample
 
     def dump(self):
         if not self.children:
