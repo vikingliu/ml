@@ -96,6 +96,12 @@ def min_Gini(D, A):
     return min_gDA, split_D
 
 
+def square_error(D):
+    c = sum([row[-1] for row in D]) * 1.0 / len(D)
+    s = sum([math.pow((row[-1] - c), 2) for row in D])
+    return s
+
+
 def min_square_error(D, A):
     D = sorted(D, key=lambda x: x[A])
     n = len(D)
@@ -104,11 +110,7 @@ def min_square_error(D, A):
     for s in range(1, n):
         R1 = D[0:s]
         R2 = D[s:n]
-        c1 = sum([row[A] for row in R1]) * 1.0 / s
-        c2 = sum([row[A] for row in R2]) * 1.0 / (n - s)
-        s1 = sum([math.pow((row[-1] - c1), 2) for row in R1])
-        s2 = sum([math.pow((row[-1] - c2), 2) for row in R2])
-        error = s1 + s2
+        error = square_error(R1) + square_error(R2)
         if error < min_error:
             min_error = error
             split_D = {'<=%s' % D[s - 1][0]: R1, '>%s' % D[s - 1][0]: R2}
@@ -125,6 +127,8 @@ def split(D, A):
 def max_cnt(D):
     stats = defaultdict(int)
     for y in D:
+        if type(y) is list:
+            y = y[-1]
         stats[y] += 1
     stats = sorted(stats.items(), key=lambda x: x[1])
     return stats[0][0]
@@ -160,7 +164,8 @@ def train(D, features, best_split_func, has_split_A=[], alg='id3', e=0.01, depth
 
     children = {}
     for v, di in Di.items():
-        child = train(di, features, best_split_func, has_split_A + [split_feature], alg, e, depth + 1, max_depth, min_sample)
+        child = train(di, features, best_split_func, has_split_A + [split_feature], alg, e, depth + 1, max_depth,
+                      min_sample)
         if child:
             children[v] = child
 
@@ -226,8 +231,10 @@ if __name__ == '__main__':
              [10, 9.00]]
     f = [u'年龄', u'有工作', u'有自己的房子', u'信贷情况']
     f1 = ['x']
-    model = cart_r(data1, f1)
+    model = cart(data, f)
     # print classify(model, [u'老年', u'否', u'是', u'非常好'])
-    print regression(model, [5.5])
+    #print regression(model, [5.5])
+    import dt_pruning
+    dt_pruning.ccp(model, Gini)
 
     model.show()
