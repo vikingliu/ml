@@ -1,4 +1,7 @@
 # coding=utf-8
+import math
+import sys
+
 import dt
 from tree import Node
 
@@ -27,19 +30,60 @@ def simple_pruning(T, a, cost_func=dt.H):
     return c_tb
 
 
-def rep(T):
-    pass
+def rep(T, test):
+    if not test:
+        return 0
+    if not T.children:
+        error_cls = [item[-1] for item in test if item[-1] != T.val]
+        return len(error_cls)
+    error = 0
+
+    if '#other' in T.children.keys() and len(T.children) == 2:
+        di = {key: [] for key in T.children.keys()}
+
+        for item in test:
+            key = item[T.feature]
+            if item[T.feature] not in di.keys():
+                key = '#other'
+            di[key].append(test)
+    else:
+        di = dt.split(test, T.feature)
+    for key, child in T.children.items():
+        sub_test = di.get(key, [])
+        error += rep(child, sub_test)
+    cls = dt.max_cnt(test)
+    error_cls = [item[-1] for item in test if item[-1] != cls]
+    error_pruning = len(error_cls)
+
+    if error_pruning < error:
+        T.children = {}
+        T.val = cls
+        return error_pruning
+    return error
 
 
 def pep(T):
-    pass
+    n = len(T.sample)
+    e_leaf = len([item[-1] for item in T.sample if item[-1] != T.val]) + 0.5
+    if not T.children:
+        return e_leaf
+    e_subtree = 0
+    for child in T.children.values():
+        e_subtree += pep(child)
+    e = e_subtree / n
+    se_subtree = math.sqrt(n * e * (1 - e))
+    if e_leaf <= e_subtree - se_subtree:
+        T.children = {}
+        T.val = dt.max_cnt(T.sample)
+        return e_leaf
+    return e_subtree
 
 
 def mep(T):
     pass
 
 
-def ccp(T, cost_func=dt.Gini):
+def ccp(T, test, cost_func=dt.Gini):
     gts = []
     _cal_pruning_a(T, cost_func, gts)
     # remove the root
@@ -50,7 +94,14 @@ def ccp(T, cost_func=dt.Gini):
     for i, a in enumerate(gts):
         Tk = _pruning_a(Tn[i], a)
         Tn.append(Tk)
-    return Tn
+    best_T = None
+    min_error = sys.maxint
+    for model in Tn:
+        error = dt.predict_classify(model, test)
+        if error < min_error:
+            min_error = error
+            best_T = model
+    return best_T
 
 
 def _pruning_a(T, a):
@@ -83,7 +134,7 @@ def _cal_pruning_a(T, cost_func=dt.Gini, gts=[]):
     return c_R
 
 
-def ebp(T):
+def ebp(T, test):
     pass
 
 

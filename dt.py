@@ -172,7 +172,9 @@ def train(D, features, best_split_func, has_split_A=[], alg='id3', e=0.01, depth
     return Node(features[split_feature], split_feature, children, D)
 
 
-def classify(model, data):
+def classify(model, data, add_test=False):
+    if add_test:
+        model.sample.append(data)
     if model.children:
         val = data[model.feature]
         sub_model = model.children.get(val, None)
@@ -182,7 +184,9 @@ def classify(model, data):
         return model.val
 
 
-def regression(model, data):
+def regression(model, data, add_test=False):
+    if add_test:
+        model.sample.append(data)
     if model.children:
         val = data[model.feature]
         for split_point, sub_model in model.children.items():
@@ -191,6 +195,31 @@ def regression(model, data):
         return classify(sub_model, data)
     else:
         return model.val
+
+
+def predict_classify(model, test, add_test=False):
+    error = 0
+    for data in test:
+        pre = classify(model, data, add_test)
+        if pre != data[-1]:
+            error += 1
+    return error
+
+
+def predict_regression(model, test, add_test=False):
+    error = 0
+    for data in test:
+        pre = regression(model, data, add_test)
+        error += math.pow(abs(pre - data[-1]), 2)
+    return error / len(test)
+
+
+def empty_sample(T):
+    if not T.children:
+        return
+    T.sample = []
+    for child in T.children.values():
+        empty_sample(child)
 
 
 def id3(D, features):
@@ -233,8 +262,9 @@ if __name__ == '__main__':
     f1 = ['x']
     model = cart(data, f)
     # print classify(model, [u'老年', u'否', u'是', u'非常好'])
-    #print regression(model, [5.5])
+    # print regression(model, [5.5])
     import dt_pruning
+
     dt_pruning.ccp(model, Gini)
 
     model.show()
