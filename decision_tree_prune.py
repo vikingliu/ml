@@ -2,11 +2,11 @@
 import math
 import sys
 
-import dt
+import decision_tree
 from tree import Node
 
 
-def simple_pruning(T, a, cost_func=dt.H):
+def simple_pruning(T, a, cost_func=decision_tree.H):
     """
 
     :param T: Tree
@@ -25,7 +25,7 @@ def simple_pruning(T, a, cost_func=dt.H):
     if c_ta <= c_tb:
         # prunning
         T.children = {}
-        T.val = dt.max_cnt(T.sample)
+        T.val = decision_tree.max_cnt(T.sample)
         return c_ta
     return c_tb
 
@@ -47,11 +47,11 @@ def rep(T, test):
                 key = '#other'
             di[key].append(test)
     else:
-        di = dt.split(test, T.feature)
+        di = decision_tree.split(test, T.feature)
     for key, child in T.children.items():
         sub_test = di.get(key, [])
         error += rep(child, sub_test)
-    cls = dt.max_cnt(test)
+    cls = decision_tree.max_cnt(test)
     error_cls = [item[-1] for item in test if item[-1] != cls]
     error_pruning = len(error_cls)
 
@@ -74,7 +74,7 @@ def pep(T):
     se_subtree = math.sqrt(n * e * (1 - e))
     if e_leaf <= e_subtree - se_subtree:
         T.children = {}
-        T.val = dt.max_cnt(T.sample)
+        T.val = decision_tree.max_cnt(T.sample)
         return e_leaf
     return e_subtree
 
@@ -83,7 +83,7 @@ def mep(T):
     pass
 
 
-def ccp(T, test, cost_func=dt.Gini):
+def ccp(T, test, cost_func=decision_tree.Gini):
     gts = []
     _cal_pruning_a(T, cost_func, gts)
     # remove the root
@@ -97,7 +97,7 @@ def ccp(T, test, cost_func=dt.Gini):
     best_T = None
     min_error = sys.maxint
     for model in Tn:
-        error = dt.predict_classify(model, test)
+        error = decision_tree.predict_classify_error(model, test)
         if error < min_error:
             min_error = error
             best_T = model
@@ -109,7 +109,7 @@ def _pruning_a(T, a):
     node = Node(val=T.val, feature=T.feature, sample=T.sample, gt=T.gt)
     if T.gt == a:
         # pruning
-        node.val = dt.max_cnt(T.sample)
+        node.val = decision_tree.max_cnt(T.sample)
         node.feature = None
         return node
     children = {}
@@ -121,7 +121,7 @@ def _pruning_a(T, a):
     return node
 
 
-def _cal_pruning_a(T, cost_func=dt.Gini, gts=[]):
+def _cal_pruning_a(T, cost_func=decision_tree.Gini, gts=[]):
     c_r = cost_func(T.sample) * len(T.sample)
     if not T.children:
         return c_r
