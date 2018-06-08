@@ -2,7 +2,6 @@
 import math
 import sys
 
-from decision_tree import max_cnt
 from ml import ML
 
 
@@ -20,11 +19,11 @@ class AdaBoost(ML):
         pre_em = sys.maxint
         for i in range(self.m):
             em, am, gm, dm = self._train_g(data, dm, g)
-            print em
-            fs.append((am, gm))
-            g.model = None
             if em < self.e or pre_em - em < 0.01:
                 break
+            print em, am, dm
+            fs.append((am, gm))
+            g.model = None
             pre_em = em
         self.model = fs
         return fs
@@ -49,7 +48,6 @@ class AdaBoost(ML):
         for i in range(n):
             dm_1[i] = dm[i] * math.exp(-1 * am * data[i][-1] * g.predict(data[i]))
             dm_1[i] /= zm
-
         return em, am, gm, dm_1
 
     def error(self, data, dm, g):
@@ -65,48 +63,80 @@ class WeakCls(ML):
     def __init__(self):
         ML.__init__(self, 'weak')
         self.model = None
-        self.splited = []
         self.error = 0
 
     def train(self, data, w=None):
-        return self.min_split_error(data, 0, w)
+        return self.min_split_error(data, w)
 
     def predict(self, test):
-        for split_v, val in self.model:
-            if test[0] <= split_v:
+        for feature, split_v, val in self.model:
+            if test[feature] <= split_v:
                 return val
         return val
 
-    def cal_error(self, D, w=None):
-        if not w:
-            w = [1] * len(D)
-        c = max_cnt(D)
+    def cal_error(self, data, c, w=None):
         e = 0
-        for i, row in enumerate(D):
+        for i, row in enumerate(data):
             if row[-1] != c:
                 e += w[i]
         return e
 
-    def min_split_error(self, D, A, w=None):
-        D = sorted(D, key=lambda x: x[A])
-        n = len(D)
-        min_error = sys.maxint
-        split_D = None
-        split_v = None
-        for s in range(1, n):
-            if s in self.splited:
-                continue
-            R1 = D[0:s]
-            R2 = D[s:n]
-            error = self.cal_error(R1, w) + self.cal_error(R2, w)
-            if error < min_error:
-                min_error = error
-                split_v = s
-                split_D = [(D[s - 1][0], max_cnt(R1)), (D[s - 1][0], max_cnt(R2))]
-        self.model = split_D
-        self.splited.append(split_v)
+    def sort_dw(self, data, feature, w=None):
+        if not w:
+            w = [1] * len(data)
+        d_w = zip(data, w)
+        d_w = sorted(d_w, key=lambda x: x[0][feature])
+        data = []
+        w = []
+        for row in d_w:
+            data.append(row[0])
+            w.append(row[1])
+        return data, w
+
+    def min_split_error(self, data, w=None):
+        for feature in range(len(data[0]) - 1):
+            data, w = self.sort_dw(data, feature, w)
+            split_v = self._split_v(data)
+            n = len(data)
+            min_error = sys.maxint
+            split_data = None
+            for s in split_v:
+                R1 = data[0:s]
+                R2 = data[s:n]
+                if not R1 or not R2:
+                    continue
+
+                w1 = w[0:s]
+                w2 = w[s:n]
+                error1 = self.cal_error(R1, 1, w1) + self.cal_error(R2, -1, w2)
+                error2 = self.cal_error(R1, -1, w1) + self.cal_error(R2, 1, w2)
+                if error1 < error2:
+                    c1 = 1
+                    c2 = -1
+                else:
+                    c1 = -1
+                    c2 = 1
+                error = min(error1, error2)
+                if error < min_error:
+                    min_error = error
+                    split_data = [(feature, data[s - 1][0], c1), (feature, data[s - 1][0], c2)]
+        self.model = split_data
         self.error = min_error
         return self.model
+
+    def _split_v(self, data):
+        pre = None
+        split_v = []
+        for i, row in enumerate(data):
+            if pre is None:
+                pre = row
+                continue
+            if row[-1] == pre[-1]:
+                continue
+
+            split_v.append(i)
+            pre = row
+        return split_v
 
 
 if __name__ == '__main__':
@@ -140,4 +170,4 @@ if __name__ == '__main__':
     g = WeakCls()
     ada = AdaBoost(g)
     ada.train(data)
-    print ada.predict([1, 3, 2])
+    print ada.predict([4])
