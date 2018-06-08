@@ -101,15 +101,15 @@ class WeakCls(ML):
             min_error = sys.maxint
             split_data = None
             for s in split_v:
-                R1 = data[0:s]
-                R2 = data[s:n]
-                if not R1 or not R2:
+                r1 = data[0:s]
+                r2 = data[s:n]
+                if not r1 or not r2:
                     continue
 
                 w1 = w[0:s]
                 w2 = w[s:n]
-                error1 = self.cal_error(R1, 1, w1) + self.cal_error(R2, -1, w2)
-                error2 = self.cal_error(R1, -1, w1) + self.cal_error(R2, 1, w2)
+                error1 = self.cal_error(r1, 1, w1) + self.cal_error(r2, -1, w2)
+                error2 = self.cal_error(r1, -1, w1) + self.cal_error(r2, 1, w2)
                 if error1 < error2:
                     c1 = 1
                     c2 = -1
