@@ -1,4 +1,5 @@
 # coding=utf-8
+import copy
 import math
 import random
 import sys
@@ -8,70 +9,98 @@ from ml import ML
 from tree import Node
 
 
-def H(D):
+def H(D, has_w=False):
     """
     计算数据集D的熵,
     :param D: [[x11,x12,x13...x1n,y],.... [xm1,xm2,xm3...xmn,y]]
+    :param has_w: row[-1] is the weight
     :return: -sum(pk * log(pk)), k=1,2,3..  = len(set(y))
     """
-    p = defaultdict(int)
-    for row in D:
-        y = row[-1]
-        p[y] += 1
+    index = -2 if has_w else -1
 
+    p = defaultdict(int)
+    for i, row in enumerate(D):
+        y = row[index]
+        if has_w:
+            p[y] += row[-1]
+        else:
+            p[y] += 1
     h = 0
+    if has_w:
+        N = sum([row[-1] for row in D])
+    else:
+        N = len(D)
     for y in p.keys():
-        p[y] /= len(D) * 1.0
+        p[y] /= N * 1.0
         h += p[y] * math.log(p[y], 2)
 
     return h * -1
 
 
-def Gini(D):
+def Gini(D, has_w=False):
     """
     计算gini指数
     :param D: [[x11,x12,x13...x1n,y],.... [xm1,xm2,xm3...xmn,y]]
+    :param has_w: row[-1] is the weight
     :return: 1 - sum(pk * pk), k=1,2,3..  = len(set(y))
     """
+    index = -2 if has_w else -1
     p = defaultdict(int)
-    for row in D:
-        y = row[-1]
-        p[y] += 1
+    for i, row in enumerate(D):
+        y = row[index]
+        if has_w:
+            p[y] += row[-1]
+        else:
+            p[y] += 1
 
     sum_pk = 0
+    if has_w:
+        N = sum([row[-1] for row in D])
+    else:
+        N = len(D)
     for y in p.keys():
-        p[y] /= len(D) * 1.0
+        p[y] /= N * 1.0
         sum_pk += p[y] * p[y]
 
     return 1 - sum_pk
 
 
-def g(D, A, alg='g'):
+def g(D, A, alg='g', has_w=None):
     """
     计算信息增益或者增益率
     :param D: [[x11,x12,x13...x1n,y],.... [xm1,xm2,xm3...xmn,y]]
     :param A: split feature A index
     :param alg: alg in ['g', 'gr']
+    :param has_w: row[-1] is the weight
     :return: (g or gr, split Di)
     """
+
     Di = split(D, A)
     HDA = 0
     HAD = 0
+    if has_w:
+        N = sum([row[-1] for row in D])
+    else:
+        N = len(D)
     for i, di in Di.items():
-        p = 1.0 * len(di) / len(D)
-        HDA += p * H(di)
+        if has_w:
+            diw = sum([row[-1] for row in di])
+        else:
+            diw = len(di)
+        p = 1.0 * diw / N
+        HDA += p * H(di, has_w)
         HAD += p
     if alg == 'gr':
-        return (H(D) - HDA) / HAD, Di
+        return (H(D, has_w) - HDA) / HAD, Di
     else:
-        return H(D) - HDA, Di
+        return H(D, has_w) - HDA, Di
 
 
-def gr(D, A):
-    return g(D, A, 'gr')
+def gr(D, A, has_w=False):
+    return g(D, A, 'gr', has_w=has_w)
 
 
-def min_Gini(D, A):
+def min_Gini(D, A, w=None):
     """
      计算特征 A所有属性的Gini, 返回最小的Gini和划分
     :param D: [[x11,x12,x13...x1n,y],.... [xm1,xm2,xm3...xmn,y]]
@@ -88,7 +117,7 @@ def min_Gini(D, A):
         for j in Di.keys():
             if j != i:
                 D2.extend(Di[j])
-        gDA = pk * Gini(D1) + 1.0 * len(D2) / len(D) * Gini(D2)
+        gDA = pk * Gini(D1, w) + 1.0 * len(D2) / len(D) * Gini(D2, w)
         if gDA < min_gDA:
             min_gDA = gDA
             split_D = {i: D1}
@@ -123,17 +152,21 @@ def min_square_error(D, A, w=None):
 
 def split(D, A):
     Di = defaultdict(list)
-    for item in D:
+    for i, item in enumerate(D):
         Di[item[A]].append(item)
     return Di
 
 
-def max_cnt(D):
+def max_cnt(D, has_w=False):
     stats = defaultdict(int)
+    index = -2 if has_w else -1
     for y in D:
+        val = 1
         if type(y) is list:
-            y = y[-1]
-        stats[y] += 1
+            if has_w:
+                val = y[-1]
+            y = y[index]
+        stats[y] += val
     stats = sorted(stats.items(), key=lambda x: x[1], reverse=True)
     return stats[0][0]
 
@@ -149,9 +182,10 @@ def rand(f_set, m):
     return m_features
 
 
-def same_row(D):
+def same_row(D, has_w=False):
+    x_len = 2 if has_w else 1
     for i in range(1, len(D)):
-        for j in range(len(D[0]) - 1):
+        for j in range(len(D[0]) - x_len):
             if D[i - 1][j] != D[i][j]:
                 return False
     return True
@@ -215,19 +249,29 @@ class DT(ML):
         'cart_r': min_square_error
     }
 
-    def __init__(self, alg, features, max_depth=sys.maxint, min_sample=1, e=0.01, rf=False):
+    def __init__(self, alg, features, max_depth=sys.maxint, min_sample=1, min_e=0.01, rf=False):
         ML.__init__(self, alg)
         self.alg = alg
         self.features = features
         self.max_depth = max_depth
         self.min_sample = min_sample
-        self.e = e
+        self.min_e = min_e
         self.rf = rf
         self.model = None
+        self.error = 0
+        self.split_A = []
         self.best_split_func = self.split_func[self.alg]
 
-    def train(self, data):
-        self.model = self._train(data)
+    def train(self, data, w=None):
+        has_w = False
+        if w:
+            D = copy.deepcopy(data)
+            for i, row in enumerate(D):
+                row.append(w[i])
+            has_w = True
+            data = D
+        self.model = self._train(data, self.split_A, has_w=has_w)
+        self.split_A.append(self.model.feature)
         return self.model
 
     def predict(self, test):
@@ -235,25 +279,26 @@ class DT(ML):
             return regression(self.model, test)
         return classify(self.model, test)
 
-    def _train(self, D, has_split_A=[], depth=1):
+    def _train(self, D, has_split_A=[], depth=1, has_w=False):
         split_feature = None
         Di = None
         rst = []
-        d = [row[-1] for row in D]
-        if len(set(d)) != 1 and depth <= self.max_depth and len(d) > self.min_sample and not same_row(D):
-            f_set = range(len(D[0]) - 1)
+        index = -2 if has_w else -1
+        d = [row[index] for row in D]
+        if len(set(d)) != 1 and depth <= self.max_depth and len(d) > self.min_sample and not same_row(D, has_w):
+            f_set = range(len(D[0]) + index)
             if self.rf:
                 m = int(math.sqrt(len(f_set)))
                 f_set = rand(f_set, m)
             for A in f_set:
                 if A in has_split_A:
                     continue
-                gDA, gDi = self.best_split_func(D, A)
+                gDA, gDi = self.best_split_func(D, A, has_w)
                 rst.append((gDA, gDi, A))
 
             if self.alg in ['id3', 'c45'] and rst:
                 gDA, Di, split_feature = max(rst)
-                if gDA < self.e:
+                if gDA < self.min_e:
                     split_feature = None
 
             elif self.alg in ['cart', 'cart_r'] and rst:
@@ -263,13 +308,14 @@ class DT(ML):
             if self.alg in ['cart_r']:
                 val = sum(d) * 1.0 / len(d)
             else:
-                val = max_cnt(d)
+                val = max_cnt(D, has_w)
+                self.error += sum([row[-1] if has_w else 1 for row in D if row[index] != val])
 
             return Node(val, sample=D)
 
         children = {}
         for v, di in Di.items():
-            child = self._train(di, has_split_A + [split_feature], depth + 1)
+            child = self._train(di, has_split_A + [split_feature], depth + 1, has_w)
             if child:
                 children[v] = child
 
@@ -288,12 +334,12 @@ class C45(DT):
 
 class CartCls(DT):
     def __init__(self, features, max_depth=sys.maxint, min_sample=1, rf=False):
-        DT.__init__(self, 'cart', features, max_depth, min_sample=min_sample, rf=rf)
+        DT.__init__(self, 'cart', features, max_depth, min_sample, rf=rf)
 
 
 class CartReg(DT):
     def __init__(self, features, max_depth=sys.maxint, min_sample=1, rf=False):
-        DT.__init__(self, 'cart_r', features, max_depth, min_sample=min_sample, rf=rf)
+        DT.__init__(self, 'cart_r', features, max_depth, min_sample, rf=rf)
 
 
 if __name__ == '__main__':
@@ -331,12 +377,13 @@ if __name__ == '__main__':
         [0, 2, 1, -1]
     ]
     f = [u'身体', u'业务', u'潜力']
-    classifier = ID3(f)
-    classifier = C45(f)
-    classifier = CartCls(f, max_depth=1)
-    # classifier = CartReg(f)
+    # classifier = ID3(f)
+    # classifier = C45(f)
+    classifier = CartCls(f, rf=True)
+    w = [1.0] * len(data)
+    # classifier = CartReg(f, rf=True)
 
-    model = classifier.train(data)
+    model = classifier.train(data, w)
     # print classify(model, [u'老年', u'否', u'是', u'非常好'])
     # print classifier.predict([5.5])
 

@@ -2,14 +2,15 @@
 import math
 import sys
 
+from decision_tree import CartCls
 from ml import ML
 
 
 class AdaBoost(ML):
-    def __init__(self, g, max_m=100, e=0.01):
+    def __init__(self, g, max_m=100, min_e=0.01):
         self.m = max_m
         self.g = g
-        self.e = e
+        self.min_e = min_e
         self.model = None
 
     def train(self, data):
@@ -19,7 +20,7 @@ class AdaBoost(ML):
         pre_em = sys.maxint
         for i in range(self.m):
             em, am, gm, dm = self._train_g(data, dm, g)
-            if em < self.e or pre_em - em < 0.01:
+            if em < self.min_e or pre_em - em < 0.01:
                 break
             print em, am, dm
             fs.append((am, gm))
@@ -154,20 +155,21 @@ if __name__ == '__main__':
     ]
     features = ['身体', '业务', '潜力']
 
-    data = [
-        [0, 1],
-        [1, 1],
-        [2, 1],
-        [3, -1],
-        [4, -1],
-        [5, -1],
-        [6, 1],
-        [7, 1],
-        [8, 1],
-        [9, -1],
-    ]
-    features = ['x']
-    g = WeakCls()
+    # data = [
+    #     [0, 1],
+    #     [1, 1],
+    #     [2, 1],
+    #     [3, -1],
+    #     [4, -1],
+    #     [5, -1],
+    #     [6, 1],
+    #     [7, 1],
+    #     [8, 1],
+    #     [9, -1],
+    # ]
+    # features = ['x']
+    # g = WeakCls()
+    g = CartCls(features, max_depth=1)
     ada = AdaBoost(g)
     ada.train(data)
-    print ada.predict([4])
+    print ada.predict([1, 1, 1])
