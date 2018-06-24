@@ -7,7 +7,7 @@ from ml import ML
 
 
 class AdaBoost(ML):
-    def __init__(self, g, max_m=100, min_e=0.01):
+    def __init__(self, g, max_m=10, min_e=0.01):
         self.m = max_m
         self.g = g
         self.min_e = min_e
@@ -19,11 +19,11 @@ class AdaBoost(ML):
         fs = []
         pre_em = sys.maxint
         for i in range(self.m):
-            em, am, gm, dm = self._train_g(data, dm, g)
+            em, alpha, gm, dm = self._train_g(data, dm, g)
             if em < self.min_e or pre_em - em < 0.01:
                 break
-            print em, am, dm
-            fs.append((am, gm))
+            print em, alpha, dm
+            fs.append((alpha, gm))
             g.model = None
             pre_em = em
         self.model = fs

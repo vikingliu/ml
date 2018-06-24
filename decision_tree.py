@@ -12,7 +12,7 @@ from tree import Node
 def H(D, has_w=False):
     """
     计算数据集D的熵,
-    :param D: [[x11,x12,x13...x1n,y],.... [xm1,xm2,xm3...xmn,y]]
+    :param D: [[x11,x12,x13...x1n,y,w],.... [xm1,xm2,xm3...xmn,y,w]] if has_w is True else there is no w
     :param has_w: row[-1] is the weight
     :return: -sum(pk * log(pk)), k=1,2,3..  = len(set(y))
     """
@@ -49,12 +49,14 @@ def Gini(D, has_w=False):
     for i, row in enumerate(D):
         y = row[index]
         if has_w:
+            # row[-1] is w
             p[y] += row[-1]
         else:
             p[y] += 1
 
     sum_pk = 0
     if has_w:
+        # sum(w)
         N = sum([row[-1] for row in D])
     else:
         N = len(D)
@@ -65,7 +67,7 @@ def Gini(D, has_w=False):
     return 1 - sum_pk
 
 
-def g(D, A, alg='g', has_w=None):
+def g(D, A, alg='g', has_w=False):
     """
     计算信息增益或者增益率
     :param D: [[x11,x12,x13...x1n,y],.... [xm1,xm2,xm3...xmn,y]]
@@ -100,7 +102,7 @@ def gr(D, A, has_w=False):
     return g(D, A, 'gr', has_w=has_w)
 
 
-def min_Gini(D, A, w=None):
+def min_Gini(D, A, has_w=False):
     """
      计算特征 A所有属性的Gini, 返回最小的Gini和划分
     :param D: [[x11,x12,x13...x1n,y],.... [xm1,xm2,xm3...xmn,y]]
@@ -111,13 +113,26 @@ def min_Gini(D, A, w=None):
     min_gDA = sys.maxint
     split_D = {}
 
+    if has_w:
+        len_d = sum([row[-1] for row in D])
+    else:
+        len_d = len(D)
+
     for i, D1 in Di.items():
-        pk = 1.0 * len(D1) / len(D)
+
         D2 = []
         for j in Di.keys():
             if j != i:
                 D2.extend(Di[j])
-        gDA = pk * Gini(D1, w) + 1.0 * len(D2) / len(D) * Gini(D2, w)
+        if has_w:
+            len_d1 = sum([row[-1] for row in D1])
+            len_d2 = sum([row[-1] for row in D2])
+        else:
+            len_d1 = len(D1)
+            len_d2 = len(D2)
+        pk = 1.0 * len_d1 / len_d
+
+        gDA = pk * Gini(D1, has_w) + 1.0 * len_d2 / len_d * Gini(D2, has_w)
         if gDA < min_gDA:
             min_gDA = gDA
             split_D = {i: D1}
@@ -127,15 +142,19 @@ def min_Gini(D, A, w=None):
     return min_gDA, split_D
 
 
-def square_error(D, w=None):
-    if not w:
+def square_error(D, has_w=None):
+    if has_w:
+        w = [row[-1] for row in D]
+        index = -2
+    else:
         w = [1] * len(D)
-    c = sum([row[-1] * w[i] for i, row in enumerate(D)]) * 1.0 / len(D)
-    s = sum([math.pow((row[-1] * w[i] - c), 2) for r, row in enumerate(D)])
+        index = -1
+    c = sum([row[index] * w[i] for i, row in enumerate(D)]) * 1.0 / len(D)
+    s = sum([math.pow((row[index] * w[i] - c), 2) for r, row in enumerate(D)])
     return s
 
 
-def min_square_error(D, A, w=None):
+def min_square_error(D, A, has_w=False):
     D = sorted(D, key=lambda x: x[A])
     n = len(D)
     min_error = sys.maxint
@@ -143,7 +162,7 @@ def min_square_error(D, A, w=None):
     for s in range(1, n):
         R1 = D[0:s]
         R2 = D[s:n]
-        error = square_error(R1, w) + square_error(R2, w)
+        error = square_error(R1, has_w) + square_error(R2, has_w)
         if error < min_error:
             min_error = error
             split_D = {'<=%s' % D[s - 1][0]: R1, '>%s' % D[s - 1][0]: R2}
@@ -259,10 +278,11 @@ class DT(ML):
         self.rf = rf
         self.model = None
         self.error = 0
-        self.split_A = []
+        # self.split_A = []
         self.best_split_func = self.split_func[self.alg]
 
     def train(self, data, w=None):
+        self.error = 0
         has_w = False
         if w:
             D = copy.deepcopy(data)
@@ -270,8 +290,8 @@ class DT(ML):
                 row.append(w[i])
             has_w = True
             data = D
-        self.model = self._train(data, self.split_A, has_w=has_w)
-        self.split_A.append(self.model.feature)
+        self.model = self._train(data, has_w=has_w)
+        # self.split_A.append(self.model.feature)
         return self.model
 
     def predict(self, test):
